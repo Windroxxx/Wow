@@ -38,7 +38,7 @@ class mainWindow(QMainWindow):
 
         self.count_x = 50
         self.count_y = 35
-        self.x1, self.y1, self.x2, self.y2, self.glowing, self.check, self.deleteb = [False] * 8
+        self.x1, self.y1, self.x2, self.y2, self.glowing, self.check, self.deleteb = [False] * 7
         self.side = 200
         self.qp_glowing, self.qp_wire = [QPainter()] * 2
 
