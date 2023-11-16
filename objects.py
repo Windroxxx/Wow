@@ -70,7 +70,9 @@ class Wire(QLineF):
         self.resistor = resistor
         self.window = window
         self.node1 = (node for node in window.nodes if node.x() == x1 and node.y() == y1)
+        self.node1.wires.add(self)
         self.node2 = (node for node in window.nodes if node.x() == x2 and node.y() == y2)
+        self.node2.wires.add(self)
 
     def separation(self):
         x_length = abs(self.x2() - self.x1())
@@ -115,7 +117,7 @@ class Node(QLabel):
     def __init__(self, window, X, Y):
         self.window = window
         self.X, self.Y = X, Y
-        self.wires = []
+        self.wires = {}
         self.head = None
         super().__init__('', window)
         self.resize(window.side // 10, window.side // 10)
