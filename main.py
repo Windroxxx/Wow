@@ -1,7 +1,7 @@
 import sys
 
 from objects import Resistor, Wire, Node
-from methods import loop_search, merge, do_clear, proverka
+from methods import loop_search, merge, proverka, find
 
 from PyQt5.QtGui import QColor, QPainter, QDoubleValidator, QIcon, QCursor, QPixmap, QPen
 from PyQt5.QtWidgets import QMainWindow, QApplication, QLineEdit, QAction
@@ -33,19 +33,20 @@ class mainWindow(QMainWindow):
         self.height = self.screenRect.height()
         self.width = self.screenRect.width()
 
+        self.side = 200
+
         self.x0 = self.width // 2
         self.y0 = self.height // 2
 
-        self.count_x = 50
-        self.count_y = 35
+        self.count_x = 45
+        self.count_y = 40
         self.x1, self.y1, self.x2, self.y2, self.glowing, self.check, self.deleteb = [False] * 7
-        self.side = 200
         self.qp_glowing, self.qp_wire = [QPainter()] * 2
 
         for i in range(self.count_x):
             self.nodes.append([])
             for g in range(self.count_y):
-                self.nodes[-1].append(Node(self, i, g))
+                self.nodes[-1].append(Node(self, i, g, True))
 
         self.message.move(self.width - self.message.width(), 0)
 
@@ -62,7 +63,7 @@ class mainWindow(QMainWindow):
         self.toolBar.addAction(self.eraser)
 
         self.clear = QAction(QIcon("clear.png"), "очистка", self)
-        self.clear.triggered.connect(do_clear)
+        self.clear.triggered.connect(self.do_clear)
         self.toolBar.addAction(self.clear)
 
         self.toolBar.addSeparator()
@@ -102,29 +103,45 @@ class mainWindow(QMainWindow):
             if resistor.value:
                 resistor.setValue(0)
 
+    def do_clear(self):
+        if self.check:
+            self.otmena()
+        for wire in self.wires.copy():
+            self.erase((wire.x1() + wire.x2()) / 2, (wire.y1() + wire.y2()) / 2)
+            self.erase((wire.x1() + wire.x2()) / 2, (wire.y1() + wire.y2()) / 2)
+
     def wire(self):
-        print('wow')
         if not self.deleteb and not self.check:
             node = self.sender()
             X = node.X
             Y = node.Y
-            x = self.x0 - ((self.side * self.count_x) / 2) + X * self.side
-            y = self.y0 - ((self.side * self.count_y) / 2) + Y * self.side
+            x = self.x0 - ((self.side * self.count_x) // 2) + X * self.side
+            y = self.y0 - ((self.side * self.count_y) // 2) + Y * self.side
             if not self.x1 and not self.y1:
-                print('nice')
                 self.x1 = x
                 self.y1 = y
                 self.glowing = True
+                self.eraser.setEnabled(False)
+                self.clear.setEnabled(False)
+                self.play_pause_button.setEnabled(False)
+                self.previous.setEnabled(False)
+                self.next.setEnabled(False)
             elif x == self.x1 and y == self.y1:
                 self.x1, self.y1, self.glowing = [False] * 3
+                self.eraser.setEnabled(True)
+                self.clear.setEnabled(True)
+                self.play_pause_button.setEnabled(True)
             else:
                 self.x2 = x
                 self.y2 = y
                 self.spawm_wire(self.x1, self.y1, self.x2, self.y2)
                 self.x1, self.y1, self.x2, self.y2, self.glowing = [False] * 5
+                self.eraser.setEnabled(True)
+                self.clear.setEnabled(True)
+                self.play_pause_button.setEnabled(True)
 
-    def spawm_wire(self, x1, y1, x2, y2):
-        self.wires.extend(Wire(x1, y1, x2, y2).separation())
+    def spawm_wire(self, x1: int, y1: int, x2: int, y2: int):
+        self.wires = self.wires | set(Wire(self, x1, y1, x2, y2).separation())
 
     def check_resistor(self, x, y):
         for wire in self.wires:
@@ -132,16 +149,18 @@ class mainWindow(QMainWindow):
             x2, y2 = wire.p2()
             e = self.side // 5
             if min(x1, x2) + e < x < max(x1, x2) - e and abs(y - y1) < self.side // 8 and wire.orientation == 'x' and \
-                    not wire.resistor:
+                    not wire.resistor and not self.glowing:
                 self.spawn_resistor('x', min(x1, x2) + self.side // 4, y1 - self.side // 10)
                 break
             elif min(y1, y2) + e < y < max(y1, y2) - e and abs(x - x1) < self.side // 7 and wire.orientation == 'y' and \
-                    not wire.resistor:
+                    not wire.resistor and not self.glowing:
+                print('og')
                 self.spawn_resistor('y', x1 - self.side // 10, min(y1, y2) + self.side // 4)
                 break
 
     def spawn_resistor(self, k, x, y, value=0):
-        Resistor(self, k, x, y, value)
+        print('wow')
+        Resistor(self, k, int(x), int(y), value)
 
     def find_neighbourhood_resistor(self):
         for resistor in self.resistors:
@@ -149,27 +168,27 @@ class mainWindow(QMainWindow):
 
     def find_neighbour(self, resistor):
         if resistor.orientation == 'y':
-            x, y = resistor.coords
+            x, y = resistor.coords()
             x += self.side // 10
             y -= self.side // 4
-            way = [tuple(sorted(((x, y), (x, y + self.side))))]
-            resistor.setFirstNeighbour(self.loop_search(self, way, x, y))
-            x, y = resistor.x(), resistor.y()
+            way = [w for w in self.wires if w.resistor == resistor]
+            resistor.second_neighbour = loop_search(self, way, int(way[0].x1()), int(way[0].y1()))
+            x, y = resistor.coords()
             x += self.side // 10
             y -= (self.side // 4 - self.side)
-            way = [tuple(sorted(((x, y), (x, y - self.side))))]
-            resistor.setSecondNeighbour(self.loop_search(self, way, x, y))
+            way = [w for w in self.wires if w.resistor == resistor]
+            resistor.second_neighbour = loop_search(self, way, int(way[0].x2()), int(way[0].y2()))
         elif resistor.orientation == 'x':
-            x, y = resistor.coords
+            x, y = resistor.coords()
             y += self.side // 10
             x -= self.side // 4
-            way = [tuple(sorted(((x + self.side, y), (x, y))))]
-            resistor.setFirstNeighbour(self.loop_search(self, way, x, y))
-            x, y = resistor.coords
+            way = [w for w in self.wires if w.resistor == resistor]
+            resistor.first_neighbour = loop_search(self, way, int(way[0].x1()), int(way[0].y1()))
+            x, y = resistor.coords()
             y += self.side // 10
             x -= (self.side // 4 - self.side)
-            way = [tuple(sorted(((x - self.side, y), (x, y))))]
-            resistor.setSecondNeighbour(self.loop_search(self, way, x, y))
+            way = [w for w in self.wires if w.resistor == resistor]
+            resistor.second_neighbour = loop_search(self, way, int(way[0].x2()), int(way[0].y2()))
 
     def make_series_group(self, resistor):
         group = set()
@@ -182,7 +201,7 @@ class mainWindow(QMainWindow):
             group.add(resistor)
         if type(resistor.second_neighbour) is Resistor:
             group.add(resistor)
-            resistor = resistor.first_neighbour
+            resistor = resistor.second_neighbour
             while not type(resistor.first_neighbour) is Node and not type(resistor.second_neighbour) is Node:
                 group.add(resistor)
                 resistor = resistor.first_neighbour if resistor.first_neighbour not in group else resistor.second_neighbour
@@ -203,31 +222,31 @@ class mainWindow(QMainWindow):
     def next_step(self):
         if self.check:
             for resistor in sorted(self.resistors, reverse=True):
-                if type(resistor.first_neighbour) is Node and type(resistor.second_neighbour) is Node and self.find(
-                        resistor.first_neighbour.coords()) == self.find(resistor.second_neighbour.coords):
-                    self.actions.append(set(resistor.copy()))
+                if type(resistor.first_neighbour) is Node and type(resistor.second_neighbour) is Node and find(
+                        resistor.first_neighbour) == find(resistor.second_neighbour):
+                    self.actions.append({resistor})
                     if resistor.orientation == 'y':
                         x, y = resistor.coords()
                         x += self.side // 10
                         y -= self.side // 4
-                        way = [tuple(sorted(((x, y), (x, y + self.side))))]
-                        self.loop_search(way, x, y, True)
+                        way = [w for w in self.wires if w.resistor == resistor]
+                        loop_search(self, way, int(way[0].x1()), int(way[0].y1()), True)
                         x, y = resistor.coords()
                         x += self.side // 10
                         y -= (self.side // 4 - self.side)
-                        way = [tuple(sorted(((x, y), (x, y - self.side))))]
-                        self.loop_search(way, x, y, True)
+                        way = [w for w in self.wires if w.resistor == resistor]
+                        loop_search(self, way, int(way[0].x1()), int(way[0].y1()), True)
                     elif resistor.orientation == 'x':
                         x, y = resistor.coords()
                         y += self.side // 10
                         x -= self.side // 4
-                        way = [tuple(sorted(((x + self.side, y), (x, y))))]
-                        self.loop_search(way, x, y, True)
+                        way = [w for w in self.wires if w.resistor == resistor]
+                        loop_search(self, way, int(way[0].x1()), int(way[0].y1()), True)
                         x, y = resistor.coords()
                         y += self.side // 10
                         x -= (self.side // 4 - self.side)
-                        way = [tuple(sorted(((x - self.side, y), (x, y))))]
-                        self.loop_search(way, x, y, True)
+                        way = [w for w in self.wires if w.resistor == resistor]
+                        loop_search(self, way, int(way[0].x1()), int(way[0].y1()), True)
                     self.erase(resistor.x() + resistor.width() // 2, resistor.y() + resistor.height() // 2)
                     self.erase(resistor.x() + resistor.width() // 2, resistor.y() + resistor.height() // 2)
                     self.calculation_nodes()
@@ -315,21 +334,23 @@ class mainWindow(QMainWindow):
         for wire in self.wires:
             x1, y1 = wire.p1()
             x2, y2 = wire.p2()
-            self.useful_nodes.add(wire.node1())
-            self.useful_nodes.add(wire.node2())
+            self.useful_nodes.add(wire.node1)
+            self.useful_nodes.add(wire.node2)
         for n in self.useful_nodes:
             n.head = n
         for n in self.useful_nodes:
             if len(n.wires) > 2:
                 for w in n.wires:
-                    n1 = loop_search(self, [w], (w.node1().x() if w.node1() != n else w.node2().x()),
-                                               (w.node1().y() if w.node1() != n else w.node2().y()))
+                    n1 = loop_search(self, [w], (w.node1.x() if w.node1 != n else w.node2.x()),
+                                               (w.node1.y() if w.node1 != n else w.node2.y()))
                     if type(n1) is Node and len(n1.wires) > 2:
                         merge(self, n, n1)
 
     def play_pause(self):
         self.check = (self.check + 1) % 2
-        self.x1, self.y1, self.glowing = [False] * 3
+        self.message.setText('')
+        self.previous.setEnabled(True)
+        self.next.setEnabled(True)
         if self.check:
             self.play_pause_button.setIcon(QIcon('pause.png'))
             if proverka(self):
@@ -341,13 +362,14 @@ class mainWindow(QMainWindow):
             self.find_neighbourhood_resistor()
             self.calculation_nodes()
         else:
-            self.play_pause_button.setIcon(QIcon('start.png'))
             self.stop()
 
 
     def stop(self):
         self.check = False
         self.play_pause_button.setIcon(QIcon('start.png'))
+        self.previous.setEnabled(False)
+        self.next.setEnabled(False)
         for i in self.resistors:
             i.first_neighbour = None
             i.second_neighbour = None
@@ -373,6 +395,8 @@ class mainWindow(QMainWindow):
                 if x1 == x2:
                     if x1 - e < x_mouse < x1 + e and min(y1, y2) < y_mouse < max(y1, y2):
                         self.wires.remove(wire)
+                        wire.node1.wires.discard(wire)
+                        wire.node2.wires.discard(wire)
                         break
                 elif y1 == y2:
                     if y1 - e < y_mouse < y1 + e and min(x1, x2) < x_mouse < max(x1, x2):
@@ -393,7 +417,7 @@ class mainWindow(QMainWindow):
                     resistor = wire.resistor
                     wire.resistor = None
                     resistor.hide()
-                    self.resistors_values.remove(resistor)
+                    self.resistors.remove(resistor)
 
     def paintEvent(self, event):
         e = self.side // 20
@@ -413,7 +437,8 @@ class mainWindow(QMainWindow):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and not self.deleteb and not self.check:
-            self.check_resistor(event.x(), event.y())
+            print('wow')
+            self.check_resistor(int(event.x()), int(event.y()))
         elif event.button() == Qt.LeftButton and not self.check:
             self.erase(event.x(), event.y())
 
