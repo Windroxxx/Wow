@@ -2,18 +2,19 @@ from PyQt5.QtWidgets import QLabel
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt, pyqtSignal, QLineF
 
+from methods import find_head
+
 from math import gcd
 
 
 class Resistor(QLabel):
     clicked = pyqtSignal()
 
-    def __init__(self, window, orientation, x, y, value):
+    def __init__(self, window, orientation, x, y, value, is_show=True):
         super().__init__(window)
         self.orientation = orientation
         self.window = window
 
-        self.window.resistors.add(self)
         self.move(x, y)
         self.setValue(value)
         self.setStyleSheet(
@@ -24,16 +25,19 @@ class Resistor(QLabel):
         if self.orientation == 'x':
             self.resize(window.side // 5 * 3, window.side // 7 * 2)
             wire = \
-            [w for w in window.wires if [w.p1(), w.p2()] == sorted(((x - window.side // 4, y + window.side // 10),
-                                                                    (x - window.side // 4 + window.side,
-                                                                     y + window.side // 10)))][0]
+                [w for w in window.wires if [w.p1(), w.p2()] == sorted(((x - window.side // 4, y + window.side // 10),
+                                                                        (x - window.side // 4 + window.side,
+                                                                         y + window.side // 10)))][0]
         else:
             self.resize(window.side // 7 * 2, window.side // 5 * 3)
             wire = \
-            [w for w in window.wires if [w.p1(), w.p2()] == sorted(((x + window.side // 10, y - window.side // 4),
-                                                                    (x + window.side // 10,
-                                                                     y - window.side // 4 + window.side)))][0]
-        wire.resistor = self
+                [w for w in window.wires if [w.p1(), w.p2()] == sorted(((x + window.side // 10, y - window.side // 4),
+                                                                        (x + window.side // 10,
+                                                                         y - window.side // 4 + window.side)))][0]
+
+        if is_show:
+            self.window.resistors.add(self)
+            wire.resistor = self
         self.clicked.connect(window.show_qle)
 
     def coords(self):
@@ -46,17 +50,25 @@ class Resistor(QLabel):
         else:
             self.setText('')
 
-    def __le__(self, other):
-        return [len(self.window.make_series_group(self)), len(self.window.make_parallel_group(self)),
-                -self.y(), -self.x()] >= [len(self.window.make_series_group(other)),
-                                          len(self.window.make_parallel_group(other)),
-                                          -other.y(), -other.x()]
+    def __lt__(self, other):
+        return [type(self.first_neighbour) is Node and type(self.second_neighbour) is Node and find_head(
+            self.first_neighbour) == find_head(self.second_neighbour), len(self.window.make_series_group(self)),
+                len(self.window.make_parallel_group(self)),
+                -self.y(), -self.x()] <= [type(self.first_neighbour) is Node and type(self.second_neighbour) is Node and find_head(
+                       self.first_neighbour) == find_head(self.second_neighbour),
+                   len(self.window.make_series_group(other)),
+                   len(self.window.make_parallel_group(other)),
+                   -other.y(), -other.x()]
 
-    def __ge__(self, other):
-        return [len(self.window.make_series_group(self)), len(self.window.make_parallel_group(self)),
-                -self.y(), -self.x()] >= [len(self.window.make_series_group(other)),
-                                          len(self.window.make_parallel_group(other)),
-                                          -other.y(), -other.x()]
+    def __gt__(self, other):
+        return [type(self.first_neighbour) is Node and type(self.second_neighbour) is Node and find_head(
+            self.first_neighbour) == find_head(self.second_neighbour),
+                len(self.window.make_series_group(self)), len(self.window.make_parallel_group(self)),
+                -self.y(), -self.x()] >= [type(self.first_neighbour) is Node and type(self.second_neighbour) is Node and find_head(
+                       self.first_neighbour) == find_head(self.second_neighbour),
+                   len(self.window.make_series_group(other)),
+                   len(self.window.make_parallel_group(other)),
+                   -other.y(), -other.x()]
 
     def mouseReleaseEvent(self, e):
         super().mouseReleaseEvent(e)
@@ -140,7 +152,6 @@ class Node(QLabel):
         else:
             self.resize(window.side // 2, window.side // 10)
             self.setStyleSheet('border: 1px solid #4d4d4d;')
-            print(self.x(), self.y())
             self.setText(f'{self.x()}-{self.y()}')
         self.setScaledContents(True)
         self.clicked.connect(window.wire)
