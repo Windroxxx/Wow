@@ -1,7 +1,7 @@
 import sys
 
 from objects import Resistor, Wire, Node
-from methods import loop_search, merge, proverka, find_head
+from methods import loop_search, proverka, find_head, calculation_nodes
 
 from PyQt5.QtGui import QColor, QPainter, QDoubleValidator, QIcon, QCursor, QPixmap, QPen
 from PyQt5.QtWidgets import QMainWindow, QApplication, QLineEdit, QAction, QMessageBox, QListWidget
@@ -41,12 +41,16 @@ class mainWindow(QMainWindow):
         self.x1, self.y1, self.x2, self.y2, self.glowing, self.check, self.deleteb = [False] * 7
         self.qp_glowing, self.qp_wire = [QPainter()] * 2
 
+        # создание узлов на поле
+
         for i in range(self.count_x):
             self.nodes.append([])
             for g in range(self.count_y):
                 self.nodes[-1].append(Node(self, i, g))
                 if 19 <= g <= 21 and 26 <= i <= 27:
                     self.nodes[-1][-1].setVisible(False)
+
+        # текстовое поле для ввода значений резисторов, изначально скрыто, появляется при нажатии на резистор
 
         self.qle = QLineEdit('', self)
         self.qle.resize(self.side // 5 * 3, 30)
@@ -60,27 +64,27 @@ class mainWindow(QMainWindow):
 
         self.reference.triggered.connect(self.show_reference)
 
-        self.eraser = QAction(QIcon("eraser.png"), "ластик", self)
+        self.eraser = QAction(QIcon("icons/eraser.png"), "ластик", self)
         self.eraser.toggled.connect(self.delete)
         self.eraser.setCheckable(True)
         self.toolBar.addAction(self.eraser)
 
-        self.clear = QAction(QIcon("clear.png"), "очистка", self)
+        self.clear = QAction(QIcon("icons/clear.png"), "очистка", self)
         self.clear.triggered.connect(self.do_clear)
         self.toolBar.addAction(self.clear)
 
         self.toolBar.addSeparator()
 
-        self.play_pause_button = QAction(QIcon("start.png"), "старт", self)
+        self.play_pause_button = QAction(QIcon("icons/start.png"), "старт", self)
         self.play_pause_button.triggered.connect(self.play_pause)
         self.toolBar.addAction(self.play_pause_button)
 
-        self.previous = QAction(QIcon('left-arrow.png'), 'назад', self)
+        self.previous = QAction(QIcon('icons/left-arrow.png'), 'назад', self)
         self.previous.triggered.connect(self.previous_step)
         self.previous.setEnabled(False)
         self.toolBar.addAction(self.previous)
 
-        self.next = QAction(QIcon('right-arrow.png'), 'вперёд', self)
+        self.next = QAction(QIcon('icons/right-arrow.png'), 'вперёд', self)
         self.next.triggered.connect(self.next_step)
         self.next.setEnabled(False)
         self.toolBar.addAction(self.next)
@@ -118,6 +122,7 @@ class mainWindow(QMainWindow):
                 resistor.setValue(0)
 
     def do_clear(self):
+        # функция для очитски поля от проводов и резисторов
         if self.check:
             self.stop()
         for wire in self.wires.copy():
@@ -125,6 +130,7 @@ class mainWindow(QMainWindow):
             self.erase((wire.x1() + wire.x2()) / 2, (wire.y1() + wire.y2()) / 2)
 
     def wire(self):
+        # функция для создания провода на поле
         if not self.deleteb and not self.check:
             node = self.sender()
             X = node.X
@@ -158,6 +164,7 @@ class mainWindow(QMainWindow):
         self.wires = self.wires | set(Wire(self, x1, y1, x2, y2).separation())
 
     def check_resistor(self, x, y):
+        # функция создающая резистор, если пользователь нажал в нужное место
         for wire in self.wires:
             x1, y1 = wire.p1()
             x2, y2 = wire.p2()
@@ -177,10 +184,9 @@ class mainWindow(QMainWindow):
     def find_neighbourhood_resistor(self):
         for resistor in self.resistors:
             self.find_neighbour(resistor)
-            print(*resistor.coords(), resistor.first_neighbour.coords(), resistor.second_neighbour.coords())
 
     def find_neighbour(self, resistor):
-        print(resistor.coords())
+        # функция для поиска соседа резистора, получает резистор, после чего циклом устанавливает соседей
         if resistor.orientation == 'y':
             x, y = resistor.coords()
             x += self.side // 10
@@ -203,41 +209,14 @@ class mainWindow(QMainWindow):
             x -= (self.side // 4 - self.side)
             way = [w for w in self.wires if w.resistor == resistor]
             resistor.second_neighbour = loop_search(self, way, int(way[0].x2()), int(way[0].y2()))
-        assert resistor.second_neighbour and resistor.first_neighbour
-
-    def make_series_group(self, resistor):
-        group = set()
-        if type(resistor.first_neighbour) is Resistor:
-            group.add(resistor)
-            resistor = resistor.first_neighbour
-            while not type(resistor.first_neighbour) is Node and not type(resistor.second_neighbour) is Node:
-                group.add(resistor)
-                resistor = resistor.first_neighbour if resistor.first_neighbour not in group else resistor.second_neighbour
-            group.add(resistor)
-        if type(resistor.second_neighbour) is Resistor:
-            group.add(resistor)
-            resistor = resistor.second_neighbour
-            while not type(resistor.first_neighbour) is Node and not type(resistor.second_neighbour) is Node:
-                group.add(resistor)
-                resistor = resistor.first_neighbour if resistor.first_neighbour not in group else resistor.second_neighbour
-            group.add(resistor)
-        return group
-
-    def make_parallel_group(self, resistor):
-        group = set()
-        if type(resistor.first_neighbour) is Node and type(resistor.second_neighbour) is Node:
-            group.add(resistor)
-            for r in self.resistors:
-                if type(r.first_neighbour) is Node and type(r.second_neighbour) == Node and {
-                    find_head(r.first_neighbour), find_head(r.second_neighbour)} == \
-                        {find_head(resistor.first_neighbour), find_head(resistor.second_neighbour)}:
-                    group.add(r)
-        return group
 
     def next_step(self):
+        """Функция упрощения цепи.
+            Функция проходит по всем резисторам пока не найдёт резисторы соединённые последовательно или параллельно.
+            После чего обновляет один из резисторов, а остальные удаляет"""
         if self.check:
             for resistor in sorted(self.resistors, reverse=True):
-                if type(resistor.first_neighbour) is Node and type(resistor.second_neighbour) is Node and find_head(
+                if type(resistor.first_neighbour) is Node and type(resistor.second_neighbour) is Node and find_head( # проверка цепи н апетли и удаление резисторов, по котором не течёт ток
                         resistor.first_neighbour) == find_head(resistor.second_neighbour):
                     self.actions.append({resistor, [w for w in self.wires if w.resistor == resistor][0]})
                     if resistor.orientation == 'y':
@@ -268,7 +247,7 @@ class mainWindow(QMainWindow):
                     self.listWidget.addItem('Удаление петли')
                     break
                 group = self.make_series_group(resistor)
-                if len(group) > 1:
+                if len(group) > 1: # поиск последовательно соединённых резисторов и упрощение цепи
                     self.actions.append(set())
                     resistor = max(group)
                     for r in group:
@@ -282,7 +261,7 @@ class mainWindow(QMainWindow):
                 else:
                     group.clear()
                 group = self.make_parallel_group(resistor)
-                if len(group) > 1:
+                if len(group) > 1: # поиск параллельно соединённых резисторов и упрощение
                     resistor = max(group)
                     self.actions.append(
                         {Resistor(self, resistor.orientation, resistor.x(), resistor.y(), resistor.value, False),
@@ -325,9 +304,10 @@ class mainWindow(QMainWindow):
                 self.stop()
 
     def previous_step(self):
+        """Функция отмены шага упрощения.
+        Выбирает последнее действие и восстанавливает удалённые резисторы и провода"""
         if self.actions:
             for obj in sorted(self.actions[-1], key=lambda x: type(x) is Resistor):
-                print(obj)
                 if type(obj) is Resistor:
                     resistor = obj
                     if resistor.coords() not in map(lambda x: x.coords(), self.resistors):
@@ -352,25 +332,8 @@ class mainWindow(QMainWindow):
             self.calculation_nodes()
             self.find_neighbourhood_resistor()
 
-    def calculation_nodes(self):
-        self.useful_nodes.clear()
-        for wire in self.wires:
-            self.useful_nodes.add(wire.node1)
-            self.useful_nodes.add(wire.node2)
-        for n in self.useful_nodes:
-            n.head = n
-        for n in self.useful_nodes:
-            if len(n.wires) > 2:
-                for w in n.wires:
-                    n1 = loop_search(self, [w], (w.node1.x() if w.node1 != n else w.node2.x()),
-                                     (w.node1.y() if w.node1 != n else w.node2.y()))
-                    if type(n1) is Node and len(n1.wires) > 2:
-                        merge(n, n1)
-        for node in self.useful_nodes:
-            if node != node.head:
-                print(node, node.head)
-
     def play_pause(self):
+        # функция запуска упрощения цепи, запускает проверку и отменяет упрощение, если цепь некорректная
         self.check = (self.check + 1) % 2
         self.message.setText('')
         self.previous.setEnabled(True)
@@ -378,7 +341,7 @@ class mainWindow(QMainWindow):
         self.clear.setEnabled(False)
         self.eraser.setEnabled(False)
         if self.check:
-            self.play_pause_button.setIcon(QIcon('pause.png'))
+            self.play_pause_button.setIcon(QIcon('icons/pause.png'))
             if proverka(self):
                 self.message.setText(proverka(self))
                 self.stop()
@@ -391,8 +354,9 @@ class mainWindow(QMainWindow):
             self.stop()
 
     def stop(self):
+        # функция отмены упрощения цепи
         self.check = False
-        self.play_pause_button.setIcon(QIcon('start.png'))
+        self.play_pause_button.setIcon(QIcon('icons/start.png'))
         self.previous.setEnabled(False)
         self.next.setEnabled(False)
         self.clear.setEnabled(True)
@@ -405,6 +369,7 @@ class mainWindow(QMainWindow):
         self.listWidget.clear()
 
     def delete(self):
+        # заменяет курсор на ластик
         if not self.deleteb:
             self.deleteb = True
             self.eraser.setChecked(True)
@@ -415,6 +380,9 @@ class mainWindow(QMainWindow):
             self.unsetCursor()
 
     def erase(self, x_mouse, y_mouse):
+        """Функция удаляющая элемент с поля.
+        Получает на вход координаты точки, которую надо очистить,
+        после чего удаляет резистор или провод на этой позиции."""
         for wire in self.wires:
             x1, y1 = wire.p1()
             x2, y2 = wire.p2()
@@ -474,7 +442,6 @@ class mainWindow(QMainWindow):
             self.erase(event.x() - 30, event.y() + 20)
 
     def keyPressEvent(self, e):
-        print(e.key())
         if e.key() == Qt.Key_E and not self.glowing and not self.check:
             self.delete()
 

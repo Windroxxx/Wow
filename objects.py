@@ -8,6 +8,7 @@ from math import gcd
 
 
 class Resistor(QLabel):
+    # класс Сопротивления
     clicked = pyqtSignal()
 
     def __init__(self, window, orientation, x, y, value, is_show=True):
@@ -76,6 +77,7 @@ class Resistor(QLabel):
 
 
 class Wire(QLineF):
+    # класс Провода
     def __init__(self, window, x1, y1, x2, y2, orientation=None, resistor=None):
         if (x1, y1) > (x2, y2):
             (x1, y1), (x2, y2) = (x2, y2), (x1, y1)
@@ -136,6 +138,8 @@ class Wire(QLineF):
 
 
 class Node(QLabel):
+    # класс Узла
+
     clicked = pyqtSignal()
 
     def __init__(self, window, X, Y, show_coordinates=False):
@@ -148,7 +152,7 @@ class Node(QLabel):
                   window.y0 - ((window.side * window.count_y) // 2) + Y * window.side)
         if not show_coordinates:
             self.resize(window.side // 10, window.side // 10)
-            self.setPixmap(QPixmap('node.png'))
+            self.setPixmap(QPixmap('icons/node.png'))
         else:
             self.resize(window.side // 2, window.side // 10)
             self.setStyleSheet('border: 1px solid #4d4d4d;')
