@@ -2,7 +2,6 @@ from PyQt5.QtWidgets import QLabel
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt, pyqtSignal, QLineF
 
-from methods import find_head
 
 from math import gcd
 
@@ -62,12 +61,8 @@ class Resistor(QLabel):
                    -other.y(), -other.x()]
 
     def __gt__(self, other):
-        return [type(self.first_neighbour) is Node and type(self.second_neighbour) is Node and find_head(
-            self.first_neighbour) == find_head(self.second_neighbour),
-                len(self.window.make_series_group(self)), len(self.window.make_parallel_group(self)),
-                -self.y(), -self.x()] >= [type(self.first_neighbour) is Node and type(self.second_neighbour) is Node and find_head(
-                       self.first_neighbour) == find_head(self.second_neighbour),
-                   len(self.window.make_series_group(other)),
+        return [len(self.window.make_series_group(self)), len(self.window.make_parallel_group(self)),
+                -self.y(), -self.x()] >= [len(self.window.make_series_group(other)),
                    len(self.window.make_parallel_group(other)),
                    -other.y(), -other.x()]
 
