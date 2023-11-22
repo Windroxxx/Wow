@@ -1,7 +1,7 @@
 import sys
 
 from objects import Resistor, Wire, Node
-from methods import loop_search, proverka, find_head, calculation_nodes
+from methods import loop_search, proverka, find_head, merge
 
 from PyQt5.QtGui import QColor, QPainter, QDoubleValidator, QIcon, QCursor, QPixmap, QPen
 from PyQt5.QtWidgets import QMainWindow, QApplication, QLineEdit, QAction, QMessageBox, QListWidget
@@ -181,6 +181,56 @@ class mainWindow(QMainWindow):
     def spawn_resistor(self, k, x, y, value=0):
         Resistor(self, k, int(x), int(y), value)
 
+    def calculation_nodes(self):
+        """Расчёт узлов.
+        Объединяет узлы в группы, если те соединенны проводом напрямую."""
+        self.useful_nodes.clear()
+        for wire in self.wires:
+            self.useful_nodes.add(wire.node1)
+            self.useful_nodes.add(wire.node2)
+        for n in self.useful_nodes:
+            n.head = n
+        for n in self.useful_nodes:
+            if len(n.wires) > 2:
+                for w in n.wires:
+                    n1 = loop_search(self, [w], (w.node1.x() if w.node1 != n else w.node2.x()),
+                                     (w.node1.y() if w.node1 != n else w.node2.y()))
+                    if type(n1) is Node and len(n1.wires) > 2:
+                        merge(n, n1)
+
+    def make_series_group(self, resistor):
+        """Создание последовательной группы.
+        На вход получает резистор, после чего запускает поиск циклом, пока не найдёт узлы с двух сторон."""
+        group = set()
+        if type(resistor.first_neighbour) is Resistor:
+            group.add(resistor)
+            resistor = resistor.first_neighbour
+            while not type(resistor.first_neighbour) is Node and not type(resistor.second_neighbour) is Node:
+                group.add(resistor)
+                resistor = resistor.first_neighbour if resistor.first_neighbour not in group else resistor.second_neighbour
+            group.add(resistor)
+        if type(resistor.second_neighbour) is Resistor:
+            group.add(resistor)
+            resistor = resistor.second_neighbour
+            while not type(resistor.first_neighbour) is Node and not type(resistor.second_neighbour) is Node:
+                group.add(resistor)
+                resistor = resistor.first_neighbour if resistor.first_neighbour not in group else resistor.second_neighbour
+            group.add(resistor)
+        return group
+
+    def make_parallel_group(self, resistor):
+        """Создание параллельной группы.
+        Получает на вход резистор и выбирает все резисторы с такими же соседями как и у данного."""
+        group = set()
+        if type(resistor.first_neighbour) is Node and type(resistor.second_neighbour) is Node:
+            group.add(resistor)
+            for r in self.resistors:
+                if type(r.first_neighbour) is Node and type(r.second_neighbour) == Node and {
+                    find_head(r.first_neighbour), find_head(r.second_neighbour)} == \
+                        {find_head(resistor.first_neighbour), find_head(resistor.second_neighbour)}:
+                    group.add(r)
+        return group
+
     def find_neighbourhood_resistor(self):
         for resistor in self.resistors:
             self.find_neighbour(resistor)
@@ -216,7 +266,8 @@ class mainWindow(QMainWindow):
             После чего обновляет один из резисторов, а остальные удаляет"""
         if self.check:
             for resistor in sorted(self.resistors, reverse=True):
-                if type(resistor.first_neighbour) is Node and type(resistor.second_neighbour) is Node and find_head( # проверка цепи н апетли и удаление резисторов, по котором не течёт ток
+                if type(resistor.first_neighbour) is Node and type(resistor.second_neighbour) is Node and find_head(
+                        # проверка цепи н апетли и удаление резисторов, по котором не течёт ток
                         resistor.first_neighbour) == find_head(resistor.second_neighbour):
                     self.actions.append({resistor, [w for w in self.wires if w.resistor == resistor][0]})
                     if resistor.orientation == 'y':
@@ -247,7 +298,7 @@ class mainWindow(QMainWindow):
                     self.listWidget.addItem('Удаление петли')
                     break
                 group = self.make_series_group(resistor)
-                if len(group) > 1: # поиск последовательно соединённых резисторов и упрощение цепи
+                if len(group) > 1:  # поиск последовательно соединённых резисторов и упрощение цепи
                     self.actions.append(set())
                     resistor = max(group)
                     for r in group:
@@ -261,7 +312,7 @@ class mainWindow(QMainWindow):
                 else:
                     group.clear()
                 group = self.make_parallel_group(resistor)
-                if len(group) > 1: # поиск параллельно соединённых резисторов и упрощение
+                if len(group) > 1:  # поиск параллельно соединённых резисторов и упрощение
                     resistor = max(group)
                     self.actions.append(
                         {Resistor(self, resistor.orientation, resistor.x(), resistor.y(), resistor.value, False),
@@ -373,7 +424,7 @@ class mainWindow(QMainWindow):
         if not self.deleteb:
             self.deleteb = True
             self.eraser.setChecked(True)
-            self.setCursor(QCursor(QPixmap('eraser.png').scaled(self.width // 42, self.width // 42)))
+            self.setCursor(QCursor(QPixmap('icons/eraser.png').scaled(self.width // 42, self.width // 42)))
         else:
             self.deleteb = False
             self.eraser.setChecked(False)

@@ -35,59 +35,6 @@ def loop_search(window, way, x, y, is_del=False):
         return wire.resistor
 
 
-def calculation_nodes(window):
-    """Расчёт узлов.
-    Объединяет узлы в группы, если те соединенны проводом напрямую."""
-    window.useful_nodes.clear()
-    for wire in window.wires:
-        window.useful_nodes.add(wire.node1)
-        window.useful_nodes.add(wire.node2)
-    for n in window.useful_nodes:
-        n.head = n
-    for n in window.useful_nodes:
-        if len(n.wires) > 2:
-            for w in n.wires:
-                n1 = loop_search(window, [w], (w.node1.x() if w.node1 != n else w.node2.x()),
-                                 (w.node1.y() if w.node1 != n else w.node2.y()))
-                if type(n1) is Node and len(n1.wires) > 2:
-                    merge(n, n1)
-
-
-def make_series_group(resistor):
-    """Создание последовательной группы.
-    На вход получает резистор, после чего запускает поиск циклом, пока не найдёт узлы с двух сторон."""
-    group = set()
-    if type(resistor.first_neighbour) is Resistor:
-        group.add(resistor)
-        resistor = resistor.first_neighbour
-        while not type(resistor.first_neighbour) is Node and not type(resistor.second_neighbour) is Node:
-            group.add(resistor)
-            resistor = resistor.first_neighbour if resistor.first_neighbour not in group else resistor.second_neighbour
-        group.add(resistor)
-    if type(resistor.second_neighbour) is Resistor:
-        group.add(resistor)
-        resistor = resistor.second_neighbour
-        while not type(resistor.first_neighbour) is Node and not type(resistor.second_neighbour) is Node:
-            group.add(resistor)
-            resistor = resistor.first_neighbour if resistor.first_neighbour not in group else resistor.second_neighbour
-        group.add(resistor)
-    return group
-
-
-def make_parallel_group(window, resistor):
-    """Создание параллельной группы.
-    Получает на вход резистор и выбирает все резисторы с такими же соседями как и у данного."""
-    group = set()
-    if type(resistor.first_neighbour) is Node and type(resistor.second_neighbour) is Node:
-        group.add(resistor)
-        for r in window.resistors:
-            if type(r.first_neighbour) is Node and type(r.second_neighbour) == Node and {
-                find_head(r.first_neighbour), find_head(r.second_neighbour)} == \
-                    {find_head(resistor.first_neighbour), find_head(resistor.second_neighbour)}:
-                group.add(r)
-    return group
-
-
 def find_head(node):
     if node != node.head:
         node.head = find_head(node.head)
